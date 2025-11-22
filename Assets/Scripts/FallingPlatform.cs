@@ -15,7 +15,7 @@ public class FallingPlatform : PlatformBase
 
     protected override void SetupPlatform()
     {
-        transform.localScale = Size;
+        // transform.localScale = Size; // REMOVED: Now handled automatically by PlatformBase
         startPosition = transform.position;
         startRotation = transform.rotation;
         
@@ -26,6 +26,8 @@ public class FallingPlatform : PlatformBase
 
     public override void OnPlayerStep(GameObject player)
     {
+        base.OnPlayerStep(player); // Enable sticky behavior
+
         // Polymorphism: Start fall sequence
         if (!isFalling)
         {

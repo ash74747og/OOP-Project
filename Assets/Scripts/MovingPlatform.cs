@@ -1,5 +1,6 @@
 using UnityEngine;
 
+[RequireComponent(typeof(Rigidbody))]
 public class MovingPlatform : PlatformBase
 {
     // Encapsulation: Private serialized fields
@@ -11,6 +12,7 @@ public class MovingPlatform : PlatformBase
     private Vector3 startPosition;
     private bool isMoving = true;
     private bool movingToTarget = true;
+    private Rigidbody rb;
 
     // Encapsulation: Public property for Speed
     public float Speed
@@ -21,15 +23,13 @@ public class MovingPlatform : PlatformBase
 
     protected override void SetupPlatform()
     {
-        transform.localScale = Size;
+        // transform.localScale = Size; // REMOVED: Now handled automatically by PlatformBase
         startPosition = transform.position;
         
-        // If target position is not set (zero), maybe set it relative or just warn? 
-        // For now, we assume user sets it in inspector. 
-        // If it's relative, we might want to add startPosition to it, but usually target is absolute or relative.
-        // Let's assume absolute for simplicity unless specified otherwise, but often relative is better for prefabs.
-        // Given "targetPosition" name, usually implies absolute world or local. Let's treat as offset for easier usage if it's (0,0,0) default?
-        // Actually, let's stick to the prompt "set initial positions".
+        rb = GetComponent<Rigidbody>();
+        rb.isKinematic = true; // Ensure it's kinematic so it pushes but isn't pushed
+        rb.useGravity = false;
+        rb.interpolation = RigidbodyInterpolation.None; // Disable interpolation since we move transform directly in Update
         
         if (moveOnTouch)
         {
@@ -39,6 +39,8 @@ public class MovingPlatform : PlatformBase
 
     public override void OnPlayerStep(GameObject player)
     {
+        base.OnPlayerStep(player); // Enable sticky behavior
+
         // Polymorphism: Trigger movement if waiting for player
         if (moveOnTouch && !isMoving)
         {
@@ -51,7 +53,20 @@ public class MovingPlatform : PlatformBase
         if (!isMoving) return;
 
         Vector3 destination = movingToTarget ? targetPosition : startPosition;
-        transform.position = Vector3.MoveTowards(transform.position, destination, speed * Time.deltaTime);
+        
+        // Calculate new position
+        // Using Update + MoveTowards is often smoother for CharacterController riding than FixedUpdate
+        Vector3 newPosition = Vector3.MoveTowards(transform.position, destination, speed * Time.deltaTime);
+        
+        // DIRECTLY set transform.position to ensure it updates immediately for the next frame's calculation
+        // This prevents "drift" where MoveTowards calculates from a stale position
+        transform.position = newPosition;
+        
+        // Sync Rigidbody if present (just to keep it happy, though for kinematic it's redundant if we set transform)
+        if (rb != null)
+        {
+            rb.position = newPosition; 
+        }
 
         if (Vector3.Distance(transform.position, destination) < 0.01f)
         {
@@ -61,21 +76,14 @@ public class MovingPlatform : PlatformBase
             }
             else
             {
-                // If not looping, maybe stop? Or just stay there.
-                // Prompt says "cycle between start and target", implying loop is usually true or it handles one way.
-                // If loop is false, maybe we stop at target?
                 if (movingToTarget) // Reached target
                 {
                     isMoving = false; // Stop moving
                 }
                 else // Reached start
                 {
-                    // If we go back to start, do we stop?
                     isMoving = false;
                 }
-                // If we want to ping-pong once, we need more logic, but "cycle" implies continuous or at least back and forth.
-                // Let's assume loop means continuous ping-pong. 
-                // If !loop, maybe it just goes to target and stops?
             }
         }
     }

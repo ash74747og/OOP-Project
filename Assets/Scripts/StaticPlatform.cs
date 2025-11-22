@@ -6,7 +6,7 @@ public class StaticPlatform : PlatformBase
     protected override void SetupPlatform()
     {
         // Simply set the scale to the Size property defined in the base class
-        transform.localScale = Size;
+        // transform.localScale = Size; // REMOVED: Now handled automatically by PlatformBase
     }
 
     // Polymorphism: Overriding the abstract method

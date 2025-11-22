@@ -41,4 +41,16 @@ public class PlatformTrigger : MonoBehaviour
             }
         }
     }
+
+    private void OnTriggerStay(Collider other)
+    {
+        if (other.CompareTag("Player"))
+        {
+            if (parentPlatform != null)
+            {
+                // Continuously confirm player presence to prevent accidental detachment
+                parentPlatform.OnPlayerStep(other.gameObject);
+            }
+        }
+    }
 }

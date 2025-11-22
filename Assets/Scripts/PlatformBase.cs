@@ -3,13 +3,17 @@ using UnityEngine;
 public abstract class PlatformBase : MonoBehaviour
 {
     // Encapsulation: Private serialized fields with public properties
-    [SerializeField] private Vector3 size = new Vector3(2.5f, 0.25f, 2f);
+    [SerializeField] private Vector3 size;
     [SerializeField] private bool isCollidable;
 
     public Vector3 Size
     {
         get { return size; }
-        set { size = value; }
+        set 
+        { 
+            size = value; 
+            transform.localScale = size; // Update physical size when property is set
+        }
     }
 
     public bool IsCollidable
@@ -18,8 +22,17 @@ public abstract class PlatformBase : MonoBehaviour
         set { isCollidable = value; }
     }
 
+    protected GameObject activePlayer;
+    private Vector3 lastPosition;
+    private Quaternion lastRotation;
+
     protected virtual void Awake()
     {
+        // Auto-take size from the object's transform
+        size = transform.localScale;
+        lastPosition = transform.position;
+        lastRotation = transform.rotation;
+
         // Ensure a collider exists
         if (GetComponent<Collider>() == null)
         {
@@ -31,14 +44,80 @@ public abstract class PlatformBase : MonoBehaviour
         SetupPlatform();
     }
 
+    protected virtual void LateUpdate()
+    {
+        // Calculate how much the platform moved and rotated this frame
+        Vector3 currentPosition = transform.position;
+        Quaternion currentRotation = transform.rotation;
+
+        Vector3 positionDelta = currentPosition - lastPosition;
+        Quaternion rotationDelta = currentRotation * Quaternion.Inverse(lastRotation);
+
+        // If player is on the platform, move/rotate them
+        if (activePlayer != null)
+        {
+            CharacterController cc = activePlayer.GetComponent<CharacterController>();
+            if (cc != null)
+            {
+                // Rotate the player around the platform's pivot
+                // Note: CharacterController doesn't handle rotation well via Move, so we rotate the transform directly
+                // But we need to rotate the position offset too if the platform rotates!
+                
+                // 1. Rotation
+                // Only rotate the player's facing direction if you want them to turn with the platform
+                // activePlayer.transform.rotation = rotationDelta * activePlayer.transform.rotation; 
+                
+                // 2. Position offset due to rotation (if player isn't at center)
+                Vector3 offset = activePlayer.transform.position - transform.position;
+                Vector3 rotatedOffset = rotationDelta * offset;
+                Vector3 rotationPositionDelta = rotatedOffset - offset;
+
+                // Combine deltas
+                Vector3 totalDelta = positionDelta + rotationPositionDelta;
+
+                if (totalDelta != Vector3.zero)
+                {
+                    cc.Move(totalDelta);
+                }
+                
+                // Optional: Rotate player look direction
+                activePlayer.transform.rotation = rotationDelta * activePlayer.transform.rotation;
+            }
+            else
+            {
+                // Fallback for non-CC objects
+                activePlayer.transform.position += positionDelta;
+                activePlayer.transform.rotation = rotationDelta * activePlayer.transform.rotation;
+            }
+        }
+
+        lastPosition = currentPosition;
+        lastRotation = currentRotation;
+    }
+
     // Abstraction: Abstract methods to be implemented by derived classes
     protected abstract void SetupPlatform();
     
-    public abstract void OnPlayerStep(GameObject player);
+    // Changed to virtual to allow base implementation for sticky behavior
+    public virtual void OnPlayerStep(GameObject player)
+    {
+        activePlayer = player;
+        StopAllCoroutines(); // Stop any pending exit routines
+    }
 
     // Virtual method that can be overridden
     public virtual void OnPlayerLeave(GameObject player)
     {
-        // Default implementation does nothing
+        if (activePlayer == player)
+        {
+            StartCoroutine(ResetActivePlayerDelay());
+        }
+    }
+
+    private System.Collections.IEnumerator ResetActivePlayerDelay()
+    {
+        yield return new WaitForEndOfFrame(); // Wait a frame to ensure it wasn't a jitter
+        yield return new WaitForEndOfFrame();
+        activePlayer = null;
     }
 }
