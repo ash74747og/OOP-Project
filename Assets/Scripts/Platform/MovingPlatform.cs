@@ -23,13 +23,12 @@ public class MovingPlatform : PlatformBase
 
     protected override void SetupPlatform()
     {
-        // transform.localScale = Size; // REMOVED: Now handled automatically by PlatformBase
         startPosition = transform.position;
         
         rb = GetComponent<Rigidbody>();
         rb.isKinematic = true; // Ensure it's kinematic so it pushes but isn't pushed
         rb.useGravity = false;
-        rb.interpolation = RigidbodyInterpolation.None; // Disable interpolation since we move transform directly in Update
+        rb.interpolation = RigidbodyInterpolation.Interpolate; // Enable interpolation for smooth movement with player
         
         if (moveOnTouch)
         {
@@ -48,27 +47,35 @@ public class MovingPlatform : PlatformBase
         }
     }
 
-    private void Update()
+    protected override void FixedUpdate()
     {
-        if (!isMoving) return;
+        // If not moving, let the base class handle sticky logic (e.g. for rotation or if pushed)
+        if (!isMoving) 
+        {
+            base.FixedUpdate();
+            return;
+        }
 
         Vector3 destination = movingToTarget ? targetPosition : startPosition;
         
         // Calculate new position
-        // Using Update + MoveTowards is often smoother for CharacterController riding than FixedUpdate
-        Vector3 newPosition = Vector3.MoveTowards(transform.position, destination, speed * Time.deltaTime);
+        // Using FixedUpdate + MovePosition for physics-based movement
+        Vector3 newPosition = Vector3.MoveTowards(rb.position, destination, speed * Time.fixedDeltaTime);
         
-        // DIRECTLY set transform.position to ensure it updates immediately for the next frame's calculation
-        // This prevents "drift" where MoveTowards calculates from a stale position
-        transform.position = newPosition;
-        
-        // Sync Rigidbody if present (just to keep it happy, though for kinematic it's redundant if we set transform)
-        if (rb != null)
-        {
-            rb.position = newPosition; 
-        }
+        // Calculate delta explicitly for the player
+        Vector3 moveDelta = newPosition - rb.position;
 
-        if (Vector3.Distance(transform.position, destination) < 0.01f)
+        // Move the platform
+        rb.MovePosition(newPosition);
+        
+        // Manually move the player in the same frame to prevent lag/jitter
+        MoveActivePlayer(moveDelta, Quaternion.identity);
+
+        // Update base class state so it doesn't get confused if we switch back to base logic
+        lastPosition = newPosition;
+        lastRotation = transform.rotation;
+
+        if (Vector3.Distance(rb.position, destination) < 0.01f)
         {
             if (loop)
             {

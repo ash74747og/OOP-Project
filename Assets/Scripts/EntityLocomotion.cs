@@ -22,25 +22,40 @@ public abstract class EntityLocomotion : MonoBehaviour
     // Abstract method forcing children to implement input processing
     protected abstract void ProcessInput();
 
+    private Vector3 moveInput;
+    private Vector3 externalVelocity;
+
     protected virtual void Update()
     {
         ProcessInput();
     }
 
+    protected virtual void FixedUpdate()
+    {
+        // Apply physics velocity in FixedUpdate for smooth movement
+        Vector3 velocity = moveInput * moveSpeed;
+        velocity.y = rb.linearVelocity.y; // Preserve vertical velocity (gravity/jumping)
+        
+        // Add external velocity (e.g. moving platforms)
+        velocity += externalVelocity;
+        
+        rb.linearVelocity = velocity;
+        
+        // Reset external velocity each frame so it doesn't persist if we leave the platform
+        externalVelocity = Vector3.zero;
+    }
+
     // Functionality: Apply physics velocity
     protected void Move(Vector3 direction)
     {
-        // Preserve vertical velocity (gravity/jumping) while setting horizontal velocity
-        Vector3 velocity = direction * moveSpeed;
-        velocity.y = rb.linearVelocity.y; // Using linearVelocity for Unity 6 compatibility, or velocity for older
-        // Since I used linearVelocity in FallingPlatform and then reverted to velocity based on user feedback/check, 
-        // I will stick to 'velocity' here to be safe unless I know for sure.
-        // Actually, the user corrected me to use 'linearVelocity' in FallingPlatform earlier? 
-        // Wait, looking back at Step 52, the USER changed 'velocity' to 'linearVelocity'. 
-        // So I should use 'linearVelocity'.
-        
-        velocity.y = rb.linearVelocity.y;
-        rb.linearVelocity = velocity;
+        // Store input for FixedUpdate
+        moveInput = direction;
+    }
+
+    // Functionality: Allow external systems (platforms) to add velocity
+    public void AddExternalVelocity(Vector3 velocity)
+    {
+        externalVelocity += velocity;
     }
 
     // Functionality: Apply upward force

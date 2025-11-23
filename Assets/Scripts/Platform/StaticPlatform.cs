@@ -5,8 +5,13 @@ public class StaticPlatform : PlatformBase
     // Polymorphism: Overriding the abstract method from the base class
     protected override void SetupPlatform()
     {
-        // Simply set the scale to the Size property defined in the base class
-        // transform.localScale = Size; // REMOVED: Now handled automatically by PlatformBase
+        // Safety Check: If a Rigidbody exists (accidentally added), ensure it's static
+        Rigidbody rb = GetComponent<Rigidbody>();
+        if (rb != null)
+        {
+            rb.isKinematic = true;
+            rb.useGravity = false;
+        }
     }
 
     // Polymorphism: Overriding the abstract method

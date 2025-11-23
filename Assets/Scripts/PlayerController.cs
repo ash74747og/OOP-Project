@@ -31,6 +31,9 @@ public class PlayerController : EntityLocomotion
         Cursor.visible = false;
     }
 
+    private Quaternion targetRotation;
+    private bool hasRotationInput;
+
     // Polymorphism: Override the abstract method
     protected override void ProcessInput()
     {
@@ -43,24 +46,36 @@ public class PlayerController : EntityLocomotion
         Vector3 direction = new Vector3(horizontal, 0f, vertical).normalized;
         
         Vector3 moveDir = Vector3.zero;
+        hasRotationInput = false;
 
         // Movement Calculation
         if (direction.magnitude >= 0.1f)
         {
+            hasRotationInput = true;
             if (cameraTransform != null)
             {
                 // Calculate target angle based on camera
                 float targetAngle = Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg + cameraTransform.eulerAngles.y;
                 float angle = Mathf.SmoothDampAngle(transform.eulerAngles.y, targetAngle, ref turnSmoothVelocity, turnSmoothTime);
                 
-                transform.rotation = Quaternion.Euler(0f, angle, 0f);
+                // Store rotation for FixedUpdate
+                targetRotation = Quaternion.Euler(0f, angle, 0f);
 
                 moveDir = Quaternion.Euler(0f, targetAngle, 0f) * Vector3.forward;
             }
             else
             {
                 moveDir = direction;
+                // Also rotate if no camera
+                float targetAngle = Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg;
+                float angle = Mathf.SmoothDampAngle(transform.eulerAngles.y, targetAngle, ref turnSmoothVelocity, turnSmoothTime);
+                targetRotation = Quaternion.Euler(0f, angle, 0f);
             }
+        }
+        else
+        {
+            // Maintain current rotation if no input
+            targetRotation = transform.rotation;
         }
 
         // Call base Move method
@@ -70,6 +85,17 @@ public class PlayerController : EntityLocomotion
         if (Input.GetButtonDown("Jump") && isGrounded)
         {
             Jump();
+        }
+    }
+
+    protected override void FixedUpdate()
+    {
+        base.FixedUpdate();
+        
+        // Apply rotation in FixedUpdate to sync with physics interpolation
+        if (hasRotationInput)
+        {
+            rb.MoveRotation(targetRotation);
         }
     }
 

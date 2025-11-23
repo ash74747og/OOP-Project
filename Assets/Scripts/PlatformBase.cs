@@ -12,7 +12,13 @@ public abstract class PlatformBase : MonoBehaviour
         set 
         { 
             size = value; 
-            transform.localScale = size; // Update physical size when property is set
+            // Safety check: Ensure scale is positive to avoid BoxCollider errors
+            Vector3 safeSize = new Vector3(
+                Mathf.Abs(size.x), 
+                Mathf.Abs(size.y), 
+                Mathf.Abs(size.z)
+            );
+            transform.localScale = safeSize; 
         }
     }
 
@@ -23,15 +29,27 @@ public abstract class PlatformBase : MonoBehaviour
     }
 
     protected GameObject activePlayer;
-    private Vector3 lastPosition;
-    private Quaternion lastRotation;
+    private Rigidbody platformRb;
+    protected Vector3 lastPosition;
+    protected Quaternion lastRotation;
 
     protected virtual void Awake()
     {
+        platformRb = GetComponent<Rigidbody>();
+
+        // Safety Check: Ensure transform scale is positive immediately
+        Vector3 validScale = new Vector3(
+            Mathf.Abs(transform.localScale.x),
+            Mathf.Abs(transform.localScale.y),
+            Mathf.Abs(transform.localScale.z)
+        );
+        transform.localScale = validScale;
+
         // Auto-take size from the object's transform
         size = transform.localScale;
-        lastPosition = transform.position;
-        lastRotation = transform.rotation;
+        // Use RB position if available to avoid interpolation artifacts
+        lastPosition = platformRb != null ? platformRb.position : transform.position;
+        lastRotation = platformRb != null ? platformRb.rotation : transform.rotation;
 
         // Ensure a collider exists
         if (GetComponent<Collider>() == null)
@@ -44,16 +62,26 @@ public abstract class PlatformBase : MonoBehaviour
         SetupPlatform();
     }
 
-    protected virtual void LateUpdate()
+    protected virtual void FixedUpdate()
     {
         // Calculate how much the platform moved and rotated this frame
-        Vector3 currentPosition = transform.position;
-        Quaternion currentRotation = transform.rotation;
+        // Use RB position if available to ensure we get the raw physics position, not the interpolated visual position
+        Vector3 currentPosition = platformRb != null ? platformRb.position : transform.position;
+        Quaternion currentRotation = platformRb != null ? platformRb.rotation : transform.rotation;
 
         Vector3 positionDelta = currentPosition - lastPosition;
         Quaternion rotationDelta = currentRotation * Quaternion.Inverse(lastRotation);
 
-        // If player is on the platform, move/rotate them
+        // Move player
+        MoveActivePlayer(positionDelta, rotationDelta);
+
+        lastPosition = currentPosition;
+        lastRotation = currentRotation;
+    }
+
+    // Helper method to allow derived classes to manually move the player (e.g. MovingPlatform)
+    protected void MoveActivePlayer(Vector3 positionDelta, Quaternion rotationDelta)
+    {
         if (activePlayer != null)
         {
             CharacterController cc = activePlayer.GetComponent<CharacterController>();
@@ -61,69 +89,45 @@ public abstract class PlatformBase : MonoBehaviour
 
             if (cc != null)
             {
-                // Rotate the player around the platform's pivot
-                // Note: CharacterController doesn't handle rotation well via Move, so we rotate the transform directly
-                // But we need to rotate the position offset too if the platform rotates!
-                
-                // 1. Rotation
-                // Only rotate the player's facing direction if you want them to turn with the platform
-                // activePlayer.transform.rotation = rotationDelta * activePlayer.transform.rotation; 
-                
-                // 2. Position offset due to rotation (if player isn't at center)
                 Vector3 offset = activePlayer.transform.position - transform.position;
                 Vector3 rotatedOffset = rotationDelta * offset;
                 Vector3 rotationPositionDelta = rotatedOffset - offset;
-
-                // Combine deltas
                 Vector3 totalDelta = positionDelta + rotationPositionDelta;
 
                 if (totalDelta != Vector3.zero)
                 {
                     cc.Move(totalDelta);
                 }
-                
-                // Optional: Rotate player look direction
                 activePlayer.transform.rotation = rotationDelta * activePlayer.transform.rotation;
             }
             else if (playerRb != null && !playerRb.isKinematic)
             {
-                // Rigidbody Logic
-                // We need to move the Rigidbody to keep up with the platform
-                // MovePosition is best for kinematic, but for dynamic player we might want to just adjust position or velocity
-                // Adjusting position directly is safest for "sticking"
+                // Rigidbody Logic: Use Velocity Injection
+                // Calculate velocity required to move the distance this frame
+                Vector3 platformVelocity = positionDelta / Time.fixedDeltaTime;
                 
-                // Calculate target position
-                Vector3 offset = playerRb.position - transform.position;
-                Vector3 rotatedOffset = rotationDelta * offset;
-                Vector3 targetPos = transform.position + rotatedOffset + positionDelta; // Wait, positionDelta is already included in transform.position change? 
-                // No, transform.position is current. lastPosition was previous.
-                // New platform pos = Old platform pos + positionDelta
-                // New player pos should be = New platform pos + rotatedOffset
-                // Let's re-calculate:
-                // Target Player Pos = Current Platform Pos + (Current Rotation * (Inverse Last Rotation * (Old Player Pos - Old Platform Pos)))
-                // Which simplifies to: Current Platform Pos + (RotationDelta * (Old Player Pos - Old Platform Pos))
-                // But we only have current player pos. 
-                // Let's stick to deltas.
+                // Inject into EntityLocomotion if available
+                EntityLocomotion locomotion = playerRb.GetComponent<EntityLocomotion>();
+                if (locomotion != null)
+                {
+                    locomotion.AddExternalVelocity(platformVelocity);
+                }
+                else
+                {
+                    // Fallback for generic Rigidbodies: Add force or velocity directly
+                    // Note: This might fight with other controllers, but it's a fallback
+                    playerRb.linearVelocity += platformVelocity;
+                }
                 
-                Vector3 rotationPositionDelta = rotatedOffset - offset;
-                Vector3 totalDelta = positionDelta + rotationPositionDelta;
-                
-                playerRb.MovePosition(playerRb.position + totalDelta);
-                
-                // Rotate player facing
                 Quaternion targetRot = rotationDelta * playerRb.rotation;
                 playerRb.MoveRotation(targetRot);
             }
             else
             {
-                // Fallback for non-CC objects
                 activePlayer.transform.position += positionDelta;
                 activePlayer.transform.rotation = rotationDelta * activePlayer.transform.rotation;
             }
         }
-
-        lastPosition = currentPosition;
-        lastRotation = currentRotation;
     }
 
     // Abstraction: Abstract methods to be implemented by derived classes
@@ -150,5 +154,20 @@ public abstract class PlatformBase : MonoBehaviour
         yield return new WaitForEndOfFrame(); // Wait a frame to ensure it wasn't a jitter
         yield return new WaitForEndOfFrame();
         activePlayer = null;
+    }
+
+    protected virtual void OnValidate()
+    {
+        // Fix negative scale in Editor
+        if (transform.localScale.x < 0 || transform.localScale.y < 0 || transform.localScale.z < 0)
+        {
+            Vector3 validScale = new Vector3(
+                Mathf.Abs(transform.localScale.x),
+                Mathf.Abs(transform.localScale.y),
+                Mathf.Abs(transform.localScale.z)
+            );
+            transform.localScale = validScale;
+            size = validScale;
+        }
     }
 }
