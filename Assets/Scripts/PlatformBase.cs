@@ -57,6 +57,8 @@ public abstract class PlatformBase : MonoBehaviour
         if (activePlayer != null)
         {
             CharacterController cc = activePlayer.GetComponent<CharacterController>();
+            Rigidbody playerRb = activePlayer.GetComponent<Rigidbody>();
+
             if (cc != null)
             {
                 // Rotate the player around the platform's pivot
@@ -82,6 +84,35 @@ public abstract class PlatformBase : MonoBehaviour
                 
                 // Optional: Rotate player look direction
                 activePlayer.transform.rotation = rotationDelta * activePlayer.transform.rotation;
+            }
+            else if (playerRb != null && !playerRb.isKinematic)
+            {
+                // Rigidbody Logic
+                // We need to move the Rigidbody to keep up with the platform
+                // MovePosition is best for kinematic, but for dynamic player we might want to just adjust position or velocity
+                // Adjusting position directly is safest for "sticking"
+                
+                // Calculate target position
+                Vector3 offset = playerRb.position - transform.position;
+                Vector3 rotatedOffset = rotationDelta * offset;
+                Vector3 targetPos = transform.position + rotatedOffset + positionDelta; // Wait, positionDelta is already included in transform.position change? 
+                // No, transform.position is current. lastPosition was previous.
+                // New platform pos = Old platform pos + positionDelta
+                // New player pos should be = New platform pos + rotatedOffset
+                // Let's re-calculate:
+                // Target Player Pos = Current Platform Pos + (Current Rotation * (Inverse Last Rotation * (Old Player Pos - Old Platform Pos)))
+                // Which simplifies to: Current Platform Pos + (RotationDelta * (Old Player Pos - Old Platform Pos))
+                // But we only have current player pos. 
+                // Let's stick to deltas.
+                
+                Vector3 rotationPositionDelta = rotatedOffset - offset;
+                Vector3 totalDelta = positionDelta + rotationPositionDelta;
+                
+                playerRb.MovePosition(playerRb.position + totalDelta);
+                
+                // Rotate player facing
+                Quaternion targetRot = rotationDelta * playerRb.rotation;
+                playerRb.MoveRotation(targetRot);
             }
             else
             {

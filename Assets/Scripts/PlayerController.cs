@@ -1,30 +1,24 @@
 using UnityEngine;
 
-[RequireComponent(typeof(CharacterController))]
-public class PlayerController : MonoBehaviour
+public class PlayerController : EntityLocomotion
 {
-    [Header("Movement Settings")]
-    [SerializeField] private float moveSpeed = 5f;
-    [SerializeField] private float jumpHeight = 2f;
-    [SerializeField] private float gravity = -9.81f;
-    [SerializeField] private float turnSmoothTime = 0.1f;
-
     [Header("References")]
     [SerializeField] private Transform cameraTransform;
+    [SerializeField] private float turnSmoothTime = 0.1f;
 
     [Header("Ground Check")]
     [SerializeField] private LayerMask groundLayer = ~0; // Default to everything
     [SerializeField] private float groundCheckOffset = 0.1f;
     [SerializeField] private float groundCheckRadius = 0.3f;
 
-    private CharacterController controller;
-    private Vector3 velocity;
     private float turnSmoothVelocity;
     private bool isGrounded;
+    private Collider playerCollider;
 
-    private void Start()
+    protected override void Awake()
     {
-        controller = GetComponent<CharacterController>();
+        base.Awake();
+        playerCollider = GetComponent<Collider>();
         
         // If camera not assigned, try to find Main Camera
         if (cameraTransform == null && Camera.main != null)
@@ -37,35 +31,11 @@ public class PlayerController : MonoBehaviour
         Cursor.visible = false;
     }
 
-    private void Update()
+    // Polymorphism: Override the abstract method
+    protected override void ProcessInput()
     {
-        // Ground check
-        // Combine CharacterController's check with a custom SphereCast for better moving platform support
-        bool ccGrounded = controller.isGrounded;
-        
-        // Custom check: OverlapSphere to find ground, ignoring ourself
-        // We use controller.bounds.min.y to get the bottom of the capsule (feet)
-        // transform.position is usually the center for primitive capsules
-        Vector3 feetPosition = new Vector3(transform.position.x, controller.bounds.min.y, transform.position.z);
-        Vector3 checkPosition = feetPosition + Vector3.down * groundCheckOffset;
-        
-        bool customGrounded = false;
-        Collider[] hits = Physics.OverlapSphere(checkPosition, groundCheckRadius, groundLayer, QueryTriggerInteraction.Ignore);
-        foreach (var hit in hits)
-        {
-            if (hit.gameObject != gameObject)
-            {
-                customGrounded = true;
-                break;
-            }
-        }
-        
-        isGrounded = ccGrounded || customGrounded;
-
-        if (isGrounded && velocity.y < 0)
-        {
-            velocity.y = -2f; // Small downward force to keep grounded
-        }
+        // Ground Check
+        CheckGround();
 
         // Input
         float horizontal = Input.GetAxisRaw("Horizontal");
@@ -89,34 +59,48 @@ public class PlayerController : MonoBehaviour
             }
             else
             {
-                // Fallback if no camera assigned (move relative to world)
                 moveDir = direction;
             }
         }
 
+        // Call base Move method
+        Move(moveDir.normalized);
+
         // Jump
         if (Input.GetButtonDown("Jump") && isGrounded)
         {
-            velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
+            Jump();
         }
+    }
 
-        // Apply Gravity
-        velocity.y += gravity * Time.deltaTime;
-
-        // Combine Movement (Horizontal + Vertical)
-        Vector3 finalMovement = (moveDir.normalized * moveSpeed) + velocity;
+    private void CheckGround()
+    {
+        // Custom check: OverlapSphere to find ground, ignoring ourself
+        // We use bounds.min.y to get the bottom of the collider (feet)
+        Vector3 feetPosition = new Vector3(transform.position.x, playerCollider.bounds.min.y, transform.position.z);
+        Vector3 checkPosition = feetPosition + Vector3.down * groundCheckOffset;
         
-        // Execute Move once per frame
-        controller.Move(finalMovement * Time.deltaTime);
+        bool customGrounded = false;
+        Collider[] hits = Physics.OverlapSphere(checkPosition, groundCheckRadius, groundLayer, QueryTriggerInteraction.Ignore);
+        foreach (var hit in hits)
+        {
+            if (hit.gameObject != gameObject)
+            {
+                customGrounded = true;
+                break;
+            }
+        }
+        
+        isGrounded = customGrounded;
     }
 
     private void OnDrawGizmosSelected()
     {
-        if (controller == null) controller = GetComponent<CharacterController>();
-        if (controller == null) return;
+        if (playerCollider == null) playerCollider = GetComponent<Collider>();
+        if (playerCollider == null) return;
 
         Gizmos.color = Color.red;
-        Vector3 feetPosition = new Vector3(transform.position.x, controller.bounds.min.y, transform.position.z);
+        Vector3 feetPosition = new Vector3(transform.position.x, playerCollider.bounds.min.y, transform.position.z);
         Gizmos.DrawWireSphere(feetPosition + Vector3.down * groundCheckOffset, groundCheckRadius);
     }
 }
