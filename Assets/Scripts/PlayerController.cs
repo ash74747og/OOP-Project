@@ -29,6 +29,19 @@ public class PlayerController : EntityLocomotion
         // Lock cursor
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
+
+        // Apply Zero Friction Material to prevent wall sticking/edge climbing
+        // Unity 2023.2+ uses 'PhysicsMaterial', older versions use 'PhysicMaterial'
+        PhysicsMaterial zeroFriction = new PhysicsMaterial("ZeroFriction");
+        zeroFriction.dynamicFriction = 0f;
+        zeroFriction.staticFriction = 0f;
+        zeroFriction.frictionCombine = PhysicsMaterialCombine.Minimum;
+        zeroFriction.bounceCombine = PhysicsMaterialCombine.Minimum;
+        
+        if (playerCollider != null)
+        {
+            playerCollider.material = zeroFriction;
+        }
     }
 
     private Quaternion targetRotation;

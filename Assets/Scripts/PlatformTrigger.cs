@@ -23,16 +23,16 @@ public class PlatformTrigger : MonoBehaviour
 
     private void Start()
     {
-        // Safety Check: Ensure BoxCollider size is positive to prevent Unity warnings
-        BoxCollider box = GetComponent<BoxCollider>();
-        if (box != null)
+        // Support ANY collider type (Box, Sphere, Capsule, Mesh)
+        Collider col = GetComponent<Collider>();
+        if (col != null)
         {
-            Vector3 validSize = new Vector3(
-                Mathf.Abs(box.size.x),
-                Mathf.Abs(box.size.y),
-                Mathf.Abs(box.size.z)
-            );
-            box.size = validSize;
+            // Critical: Ensure it's a Trigger
+            if (!col.isTrigger)
+            {
+                col.isTrigger = true;
+                Debug.LogWarning($"PlatformTrigger: Fixed missing 'Is Trigger' flag on {name}");
+            }
         }
     }
 

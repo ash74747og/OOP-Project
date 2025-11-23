@@ -17,6 +17,9 @@ public abstract class EntityLocomotion : MonoBehaviour
         rb = GetComponent<Rigidbody>();
         rb.freezeRotation = true; // Usually good for characters
         rb.interpolation = RigidbodyInterpolation.Interpolate; // Ensure smooth camera follow
+        
+        // Prevent sinking/tunneling, especially with higher mass or speed
+        rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
     }
 
     // Abstract method forcing children to implement input processing
@@ -37,7 +40,21 @@ public abstract class EntityLocomotion : MonoBehaviour
         velocity.y = rb.linearVelocity.y; // Preserve vertical velocity (gravity/jumping)
         
         // Add external velocity (e.g. moving platforms)
-        velocity += externalVelocity;
+        if (externalVelocity.y > 0)
+        {
+            // If platform is moving UP, we must override gravity/falling speed 
+            // to ensure we stick to it, otherwise gravity pulls us down and we "bop"
+            velocity.y = Mathf.Max(velocity.y, externalVelocity.y);
+            
+            // Add horizontal normally
+            velocity.x += externalVelocity.x;
+            velocity.z += externalVelocity.z;
+        }
+        else
+        {
+            // Standard addition for other directions
+            velocity += externalVelocity;
+        }
         
         rb.linearVelocity = velocity;
         
