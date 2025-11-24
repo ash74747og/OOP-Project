@@ -6,6 +6,13 @@ using UnityEditor;
 
 public class MainMenuController : MonoBehaviour
 {
+    private void Start()
+    {
+        // Ensure cursor is visible and unlocked when returning to menu
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
+    }
+
     // Function to start the game (Loads Scene 1)
     public void StartGame()
     {
