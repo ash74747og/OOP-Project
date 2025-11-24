@@ -790,7 +790,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::StaticPlatform
   size: {x: 0, y: 0, z: 0}
-  isCollidable: 0
+  isCollidable: 1
 --- !u!1001 &814931785
 PrefabInstance:
   m_ObjectHideFlags: 0
