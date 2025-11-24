@@ -14,11 +14,13 @@ public class PlayerController : EntityLocomotion
     private float turnSmoothVelocity;
     private bool isGrounded;
     private Collider playerCollider;
+    private Vector3 startPosition;
 
     protected override void Awake()
     {
         base.Awake();
         playerCollider = GetComponent<Collider>();
+        startPosition = transform.position; // Store initial position for respawning
         
         // If camera not assigned, try to find Main Camera
         if (cameraTransform == null && Camera.main != null)
@@ -141,5 +143,19 @@ public class PlayerController : EntityLocomotion
         Gizmos.color = Color.red;
         Vector3 feetPosition = new Vector3(transform.position.x, playerCollider.bounds.min.y, transform.position.z);
         Gizmos.DrawWireSphere(feetPosition + Vector3.down * groundCheckOffset, groundCheckRadius);
+    }
+
+    // Public method to be called by DeathZone
+    public void Respawn()
+    {
+        // Reset position to start
+        rb.position = startPosition;
+        transform.position = startPosition;
+        
+        // Reset velocity
+        rb.linearVelocity = Vector3.zero;
+        rb.angularVelocity = Vector3.zero;
+        
+        Debug.Log("Player respawned!");
     }
 }

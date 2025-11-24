@@ -31,7 +31,6 @@ public class PlatformTrigger : MonoBehaviour
             if (!col.isTrigger)
             {
                 col.isTrigger = true;
-                Debug.LogWarning($"PlatformTrigger: Fixed missing 'Is Trigger' flag on {name}");
             }
         }
     }
